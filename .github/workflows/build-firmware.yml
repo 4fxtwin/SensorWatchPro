@@ -25,7 +25,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       any: ${{ steps.plan.outputs.any }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: plan
@@ -60,10 +60,10 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     name: ${{ matrix.name }} (${{ matrix.display }})
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: builder
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: joeycastillo/second-movement
           ref: ${{ matrix.upstream }}
@@ -97,7 +97,7 @@ jobs:
             echo "Flash: double-tap reset, then copy \`firmware.uf2\` to the \`WATCHBOOT\` drive."
           } >> "$GITHUB_STEP_SUMMARY"
           mkdir -p ../out && cp build/firmware.uf2 movement_config.h ../out/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }}-${{ matrix.display }}-firmware
           path: out/
@@ -117,11 +117,11 @@ jobs:
         id: want
         run: echo "go=${{ matrix.simulator == 'yes' }}" >> "$GITHUB_OUTPUT"
       - if: steps.want.outputs.go == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: builder
       - if: steps.want.outputs.go == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: joeycastillo/second-movement
           ref: ${{ matrix.upstream }}
@@ -136,7 +136,7 @@ jobs:
           emmake make BOARD=${{ matrix.board }} DISPLAY=${{ matrix.display }}
           mkdir -p ../sim && cp build-sim/firmware.html build-sim/firmware.js build-sim/firmware.wasm ../sim/
       - if: steps.want.outputs.go == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }}-${{ matrix.display }}-simulator
           path: sim/
