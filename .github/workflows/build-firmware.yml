@@ -1,0 +1,142 @@
+name: Build firmware
+
+on:
+  push:
+    paths:
+      - "configs/*.h"
+  workflow_dispatch:
+    inputs:
+      config:
+        description: "Config to build, e.g. configs/my-watch.h (blank = all configs)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      any: ${{ steps.plan.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: plan
+        env:
+          INPUT_CONFIG: ${{ github.event.inputs.config }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [ -n "${INPUT_CONFIG}" ]; then files="${INPUT_CONFIG}"; else files=$(ls configs/*.h 2>/dev/null || true); fi
+          elif [ -n "${BEFORE}" ] && ! echo "${BEFORE}" | grep -qE '^0+$' && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            files=$(git diff --name-only --diff-filter=AM "${BEFORE}" "${GITHUB_SHA}" -- 'configs/*.h')
+          else
+            files=$(git show --name-only --diff-filter=AM --format= "${GITHUB_SHA}" -- 'configs/*.h')
+          fi
+          files=$(echo ${files} | tr ' ' '\n' | grep -E '^configs/[A-Za-z0-9._-]+\.h$' || true)
+          if [ -z "${files}" ]; then
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"; echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "No changed configs to build." >> "$GITHUB_STEP_SUMMARY"; exit 0
+          fi
+          echo "matrix=$(python3 tools/config_meta.py matrix ${files})" >> "$GITHUB_OUTPUT"
+          echo "any=true" >> "$GITHUB_OUTPUT"
+
+  firmware:
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/armmbed/mbed-os-env:latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: ${{ matrix.name }} (${{ matrix.display }})
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: builder
+      - uses: actions/checkout@v4
+        with:
+          repository: joeycastillo/second-movement
+          ref: ${{ matrix.upstream }}
+          path: fw
+          submodules: recursive
+      - name: Check faces exist upstream
+        run: python3 builder/tools/config_meta.py check "builder/${{ matrix.path }}" fw
+      - name: Compile
+        working-directory: fw
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/fw"
+          cp "../builder/${{ matrix.path }}" movement_config.h
+          make BOARD=${{ matrix.board }} DISPLAY=${{ matrix.display }}
+      - name: Report size
+        working-directory: fw
+        run: |
+          set -eu
+          limit=$(( 0x40000 - 0x2000 - 0x2000 ))
+          read text data bss _ < <(arm-none-eabi-size build/firmware.elf | tail -1)
+          used=$(( text + data ))
+          {
+            echo "### ${{ matrix.name }} — ${{ matrix.board }} / ${{ matrix.display }}"
+            echo ""
+            echo "| | bytes | budget | used |"
+            echo "|---|---:|---:|---:|"
+            echo "| Flash (text+data) | ${used} | ${limit} | $(( used * 100 / limit ))% |"
+            echo "| RAM (data+bss) | $(( data + bss )) | 32768 | $(( (data + bss) * 100 / 32768 ))% |"
+            echo ""
+            echo "Upstream: joeycastillo/second-movement@$(git rev-parse --short HEAD)"
+            echo ""
+            echo "Flash: double-tap reset, then copy \`firmware.uf2\` to the \`WATCHBOOT\` drive."
+          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p ../out && cp build/firmware.uf2 movement_config.h ../out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-${{ matrix.display }}-firmware
+          path: out/
+
+  simulator:
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: emscripten/emsdk
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: simulator ${{ matrix.name }} (${{ matrix.display }})
+    steps:
+      - name: Skip unless requested
+        id: want
+        run: echo "go=${{ matrix.simulator == 'yes' }}" >> "$GITHUB_OUTPUT"
+      - if: steps.want.outputs.go == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: builder
+      - if: steps.want.outputs.go == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: joeycastillo/second-movement
+          ref: ${{ matrix.upstream }}
+          path: fw
+          submodules: recursive
+      - if: steps.want.outputs.go == 'true'
+        name: Compile simulator
+        working-directory: fw
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/fw"
+          cp "../builder/${{ matrix.path }}" movement_config.h
+          emmake make BOARD=${{ matrix.board }} DISPLAY=${{ matrix.display }}
+          mkdir -p ../sim && cp build-sim/firmware.html build-sim/firmware.js build-sim/firmware.wasm ../sim/
+      - if: steps.want.outputs.go == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-${{ matrix.display }}-simulator
+          path: sim/
