@@ -4,7 +4,7 @@ A single-page builder for [Second Movement](https://github.com/joeycastillo/seco
 
 ## Use it
 
-1. Open `index.html` (locally, or via GitHub Pages: **Settings → Pages → Deploy from branch → `main` / root**).
+1. Open `index.html` locally, or the GitHub Pages site. To turn Pages on: **Settings → Pages → Source → GitHub Actions**, then run **Deploy builder to Pages** (it also redeploys on every push to `main` that changes the page).
 2. Add faces from the catalog to the **Mode rotation** (first face is home) and, optionally, the **Long-press MODE** list (hidden from rotation, reached by holding MODE on the home face).
 3. Click the MODE button on the watch preview to step through the rotation exactly as `movement.c` will.
 4. Set display type (classic / custom LCD), tune, LED colour, volumes, timeouts.
@@ -64,6 +64,7 @@ Faces are read from the `#include "*_face.h"` lines of `movement_faces.h`, not f
 | Path | Purpose |
 |---|---|
 | `index.html` | The builder (single file, works offline) |
+| `.github/workflows/pages.yml` | Publishes `index.html` + `catalog.json` to GitHub Pages |
 | `catalog.json` | Same catalog as embedded in the page |
 | `configs/` | Committed watch configs; each push builds firmware |
 | `tools/sync_catalog.py` | Regenerates the catalog from an upstream checkout |
