@@ -49,6 +49,16 @@ node tests/builder.test.js /tmp/sm             # browser tests (needs Playwright
 
 Faces are read from the `#include "*_face.h"` lines of `movement_faces.h`, not from a glob, so support headers are never listed. Configs reference faces by name, so adding or reordering faces upstream never breaks an existing config; a removed face fails the `check` step with a clear error.
 
+## Custom faces
+
+Faces that are not in upstream live in `faces/<category>/<name>_face.{c,h}`, where `<category>` is an upstream `watch-faces/` folder (`io`, `demo`, `sensor`, …). Before the face check and compile, the workflow runs `tools/custom_faces.py apply fw`. This copies them into the upstream checkout and registers them in `watch-faces.mk` and `movement_faces.h`. `sync_catalog.py` adds them to the catalog with `"custom": true`, so the builder lists them. Pushing a change under `faces/` rebuilds every config that uses a custom face.
+
+| Face | Purpose |
+|---|---|
+| `ir_peak_face` | IR sensor test: live ADC reading plus MIN/MAX hold (ALARM cycles, LIGHT resets). Sensor Watch Pro only. |
+
+To build locally, run `python3 tools/custom_faces.py apply <second-movement>` before `make`.
+
 ## Tests
 
 `tests/builder.test.js` loads the page in Chromium and checks that:
@@ -69,4 +79,6 @@ Faces are read from the `#include "*_face.h"` lines of `movement_faces.h`, not f
 | `configs/` | Committed watch configs; each push builds firmware |
 | `tools/sync_catalog.py` | Regenerates the catalog from an upstream checkout |
 | `tools/config_meta.py` | Workflow helper: metadata matrix and face check |
+| `faces/` | Custom faces not in upstream (see above) |
+| `tools/custom_faces.py` | Adds `faces/` to an upstream checkout before building |
 | `tests/builder.test.js` | Browser tests |

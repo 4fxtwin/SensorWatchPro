@@ -16,7 +16,8 @@
 
 const watch_face_t watch_faces[] = {
     clock_face, // home
-    light_sensor_face, // Phase 0: IR sensor ADC test
+    ir_peak_face, // Phase 0: IR sensor min/max hold (faces/io)
+    light_sensor_face, // Phase 0: stock live reading, for comparison
     stopwatch_face,
     countdown_face,
     world_clock_face,

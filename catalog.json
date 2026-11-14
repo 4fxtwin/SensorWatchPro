@@ -722,6 +722,21 @@
     "Raffael Vogler"
    ],
    "requires": []
+  },
+  {
+   "id": "ir_peak_face",
+   "category": "io",
+   "name": "IR peak hold",
+   "title": "IR PEAK HOLD",
+   "desc": "IR PEAK HOLD\n\nTest face for the IR phototransistor. Reads the same ADC value as the\nLight Sensor face, at the same 8 Hz rate, and keeps the lowest and\nhighest values seen since the last reset. Cover or flash the sensor,\nthen read the result once the display is visible again.\n\nALARM: cycle the display between LIVE, MAX and MIN.\nLIGHT: reset MIN and MAX to the current reading (the LED stays off).\n\nClassic LCD shows Li / Hi / Lo in the top left.\nMIN and MAX are also reset each time the face is opened.",
+   "authors": [
+    "SensorWatchPro contributors",
+    "Joey Castillo"
+   ],
+   "requires": [
+    "HAS_IR_SENSOR"
+   ],
+   "custom": true
   }
  ],
  "tunes": [

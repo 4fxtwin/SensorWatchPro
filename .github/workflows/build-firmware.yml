@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "configs/*.h"
+      - "faces/**"
+      - "tools/custom_faces.py"
   workflow_dispatch:
     inputs:
       config:
@@ -38,10 +40,19 @@ jobs:
             if [ -n "${INPUT_CONFIG}" ]; then files="${INPUT_CONFIG}"; else files=$(ls configs/*.h 2>/dev/null || true); fi
           elif [ -n "${BEFORE}" ] && ! echo "${BEFORE}" | grep -qE '^0+$' && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
             files=$(git diff --name-only --diff-filter=AM "${BEFORE}" "${GITHUB_SHA}" -- 'configs/*.h')
+            faces_changed=$(git diff --name-only "${BEFORE}" "${GITHUB_SHA}" -- faces tools/custom_faces.py)
           else
             files=$(git show --name-only --diff-filter=AM --format= "${GITHUB_SHA}" -- 'configs/*.h')
+            faces_changed=$(git show --name-only --format= "${GITHUB_SHA}" -- faces tools/custom_faces.py)
           fi
-          files=$(echo ${files} | tr ' ' '\n' | grep -E '^configs/[A-Za-z0-9._-]+\.h$' || true)
+          # A changed custom face rebuilds every config that uses one.
+          if [ -n "${faces_changed:-}" ]; then
+            ids=$(python3 tools/custom_faces.py list)
+            if [ -n "${ids}" ]; then
+              files="${files} $(grep -lwF "${ids}" configs/*.h 2>/dev/null || true)"
+            fi
+          fi
+          files=$(echo ${files} | tr ' ' '\n' | sort -u | grep -E '^configs/[A-Za-z0-9._-]+\.h$' || true)
           if [ -z "${files}" ]; then
             echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"; echo "any=false" >> "$GITHUB_OUTPUT"
             echo "No changed configs to build." >> "$GITHUB_STEP_SUMMARY"; exit 0
@@ -69,6 +80,8 @@ jobs:
           ref: ${{ matrix.upstream }}
           path: fw
           submodules: recursive
+      - name: Add custom faces
+        run: python3 builder/tools/custom_faces.py apply fw
       - name: Check faces exist upstream
         run: python3 builder/tools/config_meta.py check "builder/${{ matrix.path }}" fw
       - name: Compile
@@ -127,6 +140,9 @@ jobs:
           ref: ${{ matrix.upstream }}
           path: fw
           submodules: recursive
+      - if: steps.want.outputs.go == 'true'
+        name: Add custom faces
+        run: python3 builder/tools/custom_faces.py apply fw
       - if: steps.want.outputs.go == 'true'
         name: Compile simulator
         working-directory: fw
